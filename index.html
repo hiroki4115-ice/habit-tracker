@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f6f5f1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="習慣">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>習慣トラッカー</title>
+<style>
+  :root {
+    --bg: #f6f5f1;
+    --card: #ffffff;
+    --text: #2b2a27;
+    --muted: #8a877f;
+    --accent: #d97757;
+    --accent-soft: #f7e8e2;
+    --green: #5a9367;
+    --green-soft: #e4efe7;
+    --border: #e8e6df;
+    --radius: 14px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: calc(24px + env(safe-area-inset-top)) 16px calc(80px + env(safe-area-inset-bottom));
+  }
+  .container { max-width: 640px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 24px; }
+  header h1 { font-size: 22px; font-weight: 700; letter-spacing: .04em; }
+  header .date { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+  .tabs {
+    display: flex; gap: 6px; background: #ecebe4; border-radius: 12px;
+    padding: 4px; margin-bottom: 20px;
+  }
+  .tabs button {
+    flex: 1; border: none; background: transparent; padding: 9px 0;
+    border-radius: 9px; font-size: 14px; font-weight: 600; color: var(--muted);
+    cursor: pointer; font-family: inherit; transition: all .15s;
+  }
+  .tabs button.active { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; margin-bottom: 12px;
+  }
+
+  /* ---- Today ---- */
+  .habit-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 14px 16px; background: var(--card);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    margin-bottom: 10px; transition: all .15s;
+  }
+  .habit-row.done { background: var(--green-soft); border-color: #cfe3d4; }
+  .checkbox {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid #c9c6bd; background: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; color: #fff; flex-shrink: 0; transition: all .15s; margin-top: 2px;
+  }
+  .habit-row.done .checkbox { background: var(--green); border-color: var(--green); }
+  .habit-info { flex: 1; min-width: 0; }
+  .habit-name { font-size: 15px; font-weight: 600; word-break: break-all; cursor: pointer; }
+  .habit-row.done .habit-name { color: #4a7a56; }
+  .streak { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .streak .fire { color: var(--accent); font-weight: 700; }
+  .plan-label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .record-line {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    margin-top: 8px; font-size: 12px; color: var(--muted);
+  }
+  .record-line input {
+    border: 1px solid var(--border); border-radius: 8px; padding: 4px 6px;
+    font-size: 13px; font-family: inherit; background: #fff; color: var(--text);
+  }
+  .record-line input[type="number"] { width: 62px; }
+  .diff-badge { font-weight: 700; }
+  .diff-badge.early { color: var(--green); }
+  .diff-badge.late { color: var(--accent); }
+  .del-btn {
+    border: none; background: none; color: #c9c6bd; cursor: pointer;
+    font-size: 16px; padding: 6px; border-radius: 8px; flex-shrink: 0;
+  }
+  .del-btn:hover { color: var(--accent); background: var(--accent-soft); }
+
+  .add-form { margin-top: 16px; }
+  .add-form .row1 { display: flex; gap: 8px; }
+  .add-form input[type="text"] {
+    flex: 1; padding: 12px 14px; border: 1px solid var(--border);
+    border-radius: 12px; font-size: 15px; font-family: inherit;
+    background: var(--card); outline: none;
+  }
+  .add-form input:focus { border-color: var(--accent); }
+  .add-form button {
+    padding: 12px 20px; border: none; border-radius: 12px;
+    background: var(--accent); color: #fff; font-size: 15px; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+  }
+  .add-form button:hover { opacity: .9; }
+  .add-form .row2 {
+    display: flex; gap: 8px; align-items: center; margin-top: 8px;
+    font-size: 12px; color: var(--muted); flex-wrap: wrap;
+  }
+  .add-form .row2 input {
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px;
+    font-size: 13px; font-family: inherit; background: var(--card);
+  }
+  .add-form .row2 input[type="number"] { width: 70px; }
+
+  .empty { text-align: center; color: var(--muted); padding: 40px 0; font-size: 14px; line-height: 1.8; }
+  .today-summary { text-align: center; font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+  .today-summary b { color: var(--text); }
+
+  /* ---- Calendar ---- */
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .cal-head h2 { font-size: 16px; }
+  .cal-head button {
+    border: 1px solid var(--border); background: var(--card); border-radius: 10px;
+    width: 34px; height: 34px; font-size: 16px; cursor: pointer; color: var(--text);
+  }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+  .cal-dow { text-align: center; font-size: 11px; color: var(--muted); padding-bottom: 4px; }
+  .cal-cell {
+    aspect-ratio: 1; border-radius: 8px; background: #efeee8;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: var(--muted); position: relative;
+  }
+  .cal-cell.l1 { background: #d7e8dc; color: #4a7a56; }
+  .cal-cell.l2 { background: #a9cfb4; color: #2f5c3b; }
+  .cal-cell.l3 { background: #6fae80; color: #fff; }
+  .cal-cell.l4 { background: var(--green); color: #fff; font-weight: 700; }
+  .cal-cell.today-mark { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .cal-cell.blank { background: transparent; }
+  .cal-legend { display: flex; align-items: center; gap: 5px; justify-content: flex-end; margin-top: 12px; font-size: 11px; color: var(--muted); }
+  .cal-legend span { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+
+  /* ---- Stats ---- */
+  .stat-row { margin-bottom: 20px; }
+  .stat-row:last-child { margin-bottom: 0; }
+  .stat-top { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 6px; }
+  .stat-top .pct { font-weight: 700; color: var(--green); }
+  .bar { height: 10px; background: #efeee8; border-radius: 5px; overflow: hidden; }
+  .bar div { height: 100%; background: var(--green); border-radius: 5px; transition: width .4s; }
+  .stat-sub { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.7; }
+  .stat-sub .good { color: var(--green); font-weight: 700; }
+  .stat-sub .bad { color: var(--accent); font-weight: 700; }
+  .section-label { font-size: 13px; font-weight: 700; color: var(--muted); margin: 4px 0 10px; letter-spacing: .05em; }
+  .big-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .big-stat { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 8px; text-align: center; }
+  .big-stat .num { font-size: 20px; font-weight: 700; color: var(--accent); }
+  .big-stat .lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🌱 習慣トラッカー</h1>
+    <div class="date" id="todayLabel"></div>
+  </header>
+
+  <div class="tabs">
+    <button id="tab-today" class="active" onclick="switchTab('today')">今日</button>
+    <button id="tab-calendar" onclick="switchTab('calendar')">カレンダー</button>
+    <button id="tab-stats" onclick="switchTab('stats')">統計</button>
+  </div>
+
+  <div id="view-today"></div>
+  <div id="view-calendar" style="display:none"></div>
+  <div id="view-stats" style="display:none"></div>
+</div>
+
+<script>
+const STORAGE_KEY = 'habitTracker.v1';
+let state = load();
+let calYear, calMonth;
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && Array.isArray(s.habits) && typeof s.checks === 'object') return migrate(s);
+    }
+  } catch (e) {}
+  return { habits: [], checks: {} };
+}
+// 旧形式 (checks[id][date] === true) を新形式 ({at, dur}) に変換
+function migrate(s) {
+  for (const id in s.checks) {
+    for (const key in s.checks[id]) {
+      if (s.checks[id][key] === true) s.checks[id][key] = { at: null, dur: null };
+    }
+  }
+  for (const h of s.habits) {
+    if (!('plan' in h)) h.plan = null;
+    if (!('planDur' in h)) h.planDur = null;
+  }
+  return s;
+}
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+function dateKey(d) {
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+function todayKey() { return dateKey(new Date()); }
+function nowHM() {
+  const n = new Date();
+  return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
+}
+function toMin(hm) {
+  if (!hm) return null;
+  const [h, m] = hm.split(':').map(Number);
+  return h * 60 + m;
+}
+function fromMin(min) {
+  min = ((Math.round(min) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(min/60)).padStart(2,'0')}:${String(min%60).padStart(2,'0')}`;
+}
+// 予定時刻との差(分)。日をまたぐケースは近い方に丸める
+function timeDiff(plan, at) {
+  if (plan == null || at == null) return null;
+  let d = toMin(at) - toMin(plan);
+  if (d > 720) d -= 1440;
+  if (d < -720) d += 1440;
+  return d;
+}
+function fmtDur(min) {
+  if (min == null) return '-';
+  min = Math.round(min);
+  return min >= 60 ? `${Math.floor(min/60)}時間${min%60 ? (min%60)+'分' : ''}` : `${min}分`;
+}
+
+function getCheck(habitId, key) {
+  const v = state.checks[habitId] && state.checks[habitId][key];
+  if (!v) return null;
+  return v === true ? { at: null, dur: null } : v;
+}
+function isChecked(habitId, key) { return !!getCheck(habitId, key); }
+
+function toggle(habitId) {
+  const key = todayKey();
+  if (!state.checks[habitId]) state.checks[habitId] = {};
+  if (state.checks[habitId][key]) {
+    delete state.checks[habitId][key];
+  } else {
+    const h = state.habits.find(h => h.id === habitId);
+    state.checks[habitId][key] = { at: nowHM(), dur: h && h.planDur != null ? h.planDur : null };
+  }
+  save(); render();
+}
+
+function setActualTime(habitId, value) {
+  const c = state.checks[habitId] && state.checks[habitId][todayKey()];
+  if (c && typeof c === 'object') { c.at = value || null; save(); renderStats(); renderTodayMeta(habitId); }
+}
+function setActualDur(habitId, value) {
+  const c = state.checks[habitId] && state.checks[habitId][todayKey()];
+  if (c && typeof c === 'object') {
+    const n = parseInt(value, 10);
+    c.dur = isNaN(n) || n <= 0 ? null : n;
+    save(); renderStats(); renderTodayMeta(habitId);
+  }
+}
+function renderTodayMeta(habitId) {
+  const el = document.getElementById('meta-' + habitId);
+  if (el) el.innerHTML = metaHTML(habitId);
+}
+
+function editPlan(habitId) {
+  const h = state.habits.find(h => h.id === habitId);
+  if (!h) return;
+  const t = prompt('予定時刻 (例 07:00、空欄で解除)', h.plan || '');
+  if (t === null) return;
+  h.plan = /^\d{1,2}:\d{2}$/.test(t.trim()) ? t.trim().padStart(5, '0') : null;
+  const d = prompt('予定所要時間・分 (例 30、空欄で解除)', h.planDur != null ? h.planDur : '');
+  if (d !== null) {
+    const n = parseInt(d, 10);
+    h.planDur = isNaN(n) || n <= 0 ? null : n;
+  }
+  save(); render();
+}
+
+function addHabit(ev) {
+  ev.preventDefault();
+  const input = document.getElementById('habitInput');
+  const name = input.value.trim();
+  if (!name) return;
+  const plan = document.getElementById('planInput').value || null;
+  const pd = parseInt(document.getElementById('planDurInput').value, 10);
+  state.habits.push({
+    id: 'h' + Date.now() + Math.random().toString(36).slice(2,6),
+    name, createdAt: todayKey(),
+    plan, planDur: isNaN(pd) || pd <= 0 ? null : pd
+  });
+  input.value = '';
+  document.getElementById('planInput').value = '';
+  document.getElementById('planDurInput').value = '';
+  save(); render();
+  document.getElementById('habitInput').focus();
+}
+
+function removeHabit(habitId) {
+  const h = state.habits.find(h => h.id === habitId);
+  if (!confirm(`「${h ? h.name : ''}」を削除しますか?記録も消えます。`)) return;
+  state.habits = state.habits.filter(h => h.id !== habitId);
+  delete state.checks[habitId];
+  save(); render();
+}
+
+function streak(habitId) {
+  let count = 0;
+  const d = new Date();
+  if (!isChecked(habitId, dateKey(d))) d.setDate(d.getDate() - 1);
+  while (isChecked(habitId, dateKey(d))) { count++; d.setDate(d.getDate() - 1); }
+  return count;
+}
+
+function bestStreak(habitId) {
+  const keys = Object.keys(state.checks[habitId] || {}).sort();
+  let best = 0, cur = 0, prev = null;
+  for (const k of keys) {
+    if (prev) {
+      const p = new Date(prev + 'T00:00:00');
+      p.setDate(p.getDate() + 1);
+      cur = (dateKey(p) === k) ? cur + 1 : 1;
+    } else cur = 1;
+    if (cur > best) best = cur;
+    prev = k;
+  }
+  return best;
+}
+
+function rate(habitId, days) {
+  let done = 0;
+  const d = new Date();
+  for (let i = 0; i < days; i++) {
+    if (isChecked(habitId, dateKey(d))) done++;
+    d.setDate(d.getDate() - 1);
+  }
+  return Math.round(done / days * 100);
+}
+
+// 直近days日の時刻・所要時間の統計
+function timeStats(habitId, days) {
+  const h = state.habits.find(h => h.id === habitId);
+  const d = new Date();
+  const diffs = [], ats = [], durs = [];
+  let onTime = 0;
+  for (let i = 0; i < days; i++) {
+    const c = getCheck(habitId, dateKey(d));
+    if (c) {
+      if (c.at != null) {
+        ats.push(toMin(c.at));
+        const df = timeDiff(h && h.plan, c.at);
+        if (df !== null) { diffs.push(df); if (Math.abs(df) <= 15) onTime++; }
+      }
+      if (c.dur != null) durs.push(c.dur);
+    }
+    d.setDate(d.getDate() - 1);
+  }
+  const avg = a => a.length ? a.reduce((s,x)=>s+x,0) / a.length : null;
+  return {
+    avgAt: avg(ats),
+    avgDiff: avg(diffs),
+    onTimeRate: diffs.length ? Math.round(onTime / diffs.length * 100) : null,
+    nDiff: diffs.length,
+    avgDur: avg(durs),
+    totalDur: durs.reduce((s,x)=>s+x,0),
+    nDur: durs.length
+  };
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function diffBadge(df) {
+  if (df === null) return '';
+  if (df === 0) return `<span class="diff-badge early">ぴったり</span>`;
+  return df > 0
+    ? `<span class="diff-badge late">+${Math.round(df)}分遅れ</span>`
+    : `<span class="diff-badge early">${Math.round(-df)}分早い</span>`;
+}
+
+/* ---------- Views ---------- */
+
+function metaHTML(habitId) {
+  const h = state.habits.find(h => h.id === habitId);
+  const c = getCheck(habitId, todayKey());
+  if (!c) return '';
+  const df = timeDiff(h.plan, c.at);
+  return `
+    実施 <input type="time" value="${c.at || ''}" onchange="setActualTime('${habitId}', this.value)">
+    <input type="number" min="1" max="1440" value="${c.dur != null ? c.dur : ''}" placeholder="分"
+      onchange="setActualDur('${habitId}', this.value)"> 分
+    ${diffBadge(df)}`;
+}
+
+function renderToday() {
+  const el = document.getElementById('view-today');
+  const key = todayKey();
+  let html = '';
+  if (state.habits.length) {
+    const done = state.habits.filter(h => isChecked(h.id, key)).length;
+    html += `<div class="today-summary">今日の達成: <b>${done} / ${state.habits.length}</b>${done === state.habits.length ? ' 🎉 全部達成!' : ''}</div>`;
+    for (const h of state.habits) {
+      const checked = isChecked(h.id, key);
+      const st = streak(h.id);
+      const planTxt = [
+        h.plan ? `予定 ${h.plan}` : null,
+        h.planDur != null ? `${h.planDur}分` : null
+      ].filter(Boolean).join(' / ');
+      html += `
+        <div class="habit-row${checked ? ' done' : ''}">
+          <div class="checkbox" onclick="toggle('${h.id}')">${checked ? '✓' : ''}</div>
+          <div class="habit-info">
+            <div class="habit-name" onclick="toggle('${h.id}')">${esc(h.name)}</div>
+            <div class="plan-label" onclick="editPlan('${h.id}')" style="cursor:pointer" title="タップして予定を編集">
+              ${planTxt ? '🕐 ' + planTxt : '＋ 予定時刻・所要時間を設定'}
+            </div>
+            <div class="streak">${st > 0 ? `<span class="fire">🔥 ${st}日連続</span>` : '記録を始めましょう'}</div>
+            ${checked ? `<div class="record-line" id="meta-${h.id}">${metaHTML(h.id)}</div>` : ''}
+          </div>
+          <button class="del-btn" onclick="removeHabit('${h.id}')" title="削除">✕</button>
+        </div>`;
+    }
+  } else {
+    html += `<div class="empty">まだ習慣がありません。<br>小さく始めるのがコツです。<br>「腕立て1回」「本を1ページ」くらいから。</div>`;
+  }
+  html += `
+    <form class="add-form" onsubmit="addHabit(event)">
+      <div class="row1">
+        <input id="habitInput" type="text" placeholder="新しい習慣(例: 朝の散歩)" maxlength="40">
+        <button type="submit">追加</button>
+      </div>
+      <div class="row2">
+        予定時刻 <input id="planInput" type="time">
+        所要時間 <input id="planDurInput" type="number" min="1" max="1440" placeholder="30"> 分(任意)
+      </div>
+    </form>`;
+  el.innerHTML = html;
+}
+
+function renderCalendar() {
+  const el = document.getElementById('view-calendar');
+  const first = new Date(calYear, calMonth, 1);
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const startDow = first.getDay();
+  const tKey = todayKey();
+  const n = state.habits.length;
+
+  let cells = '';
+  const dows = ['日','月','火','水','木','金','土'];
+  for (const d of dows) cells += `<div class="cal-dow">${d}</div>`;
+  for (let i = 0; i < startDow; i++) cells += `<div class="cal-cell blank"></div>`;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const key = dateKey(new Date(calYear, calMonth, day));
+    let cls = '';
+    if (n > 0) {
+      const done = state.habits.filter(h => isChecked(h.id, key)).length;
+      const r = done / n;
+      if (r > 0) cls = r >= 1 ? 'l4' : r >= 0.75 ? 'l3' : r >= 0.5 ? 'l2' : 'l1';
+    }
+    if (key === tKey) cls += ' today-mark';
+    cells += `<div class="cal-cell ${cls}">${day}</div>`;
+  }
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="cal-head">
+        <button onclick="moveMonth(-1)">‹</button>
+        <h2>${calYear}年${calMonth + 1}月</h2>
+        <button onclick="moveMonth(1)">›</button>
+      </div>
+      <div class="cal-grid">${cells}</div>
+      <div class="cal-legend">
+        少 <span style="background:#efeee8"></span><span style="background:#d7e8dc"></span><span style="background:#a9cfb4"></span><span style="background:#6fae80"></span><span style="background:var(--green)"></span> 全達成
+      </div>
+    </div>`;
+}
+
+function moveMonth(delta) {
+  calMonth += delta;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderCalendar();
+}
+
+function renderStats() {
+  const el = document.getElementById('view-stats');
+  if (!state.habits.length) {
+    el.innerHTML = `<div class="empty">習慣を追加すると統計が表示されます。</div>`;
+    return;
+  }
+  const totalChecks = state.habits.reduce((s, h) => s + Object.keys(state.checks[h.id] || {}).length, 0);
+  const maxStreak = Math.max(...state.habits.map(h => streak(h.id)));
+  const totalDur30 = state.habits.reduce((s, h) => s + timeStats(h.id, 30).totalDur, 0);
+
+  let html = `
+    <div class="big-stats">
+      <div class="big-stat"><div class="num">${totalChecks}</div><div class="lbl">累計チェック</div></div>
+      <div class="big-stat"><div class="num">🔥${maxStreak}</div><div class="lbl">現在の最長連続</div></div>
+      <div class="big-stat"><div class="num">${fmtDur(totalDur30)}</div><div class="lbl">直近30日の合計時間</div></div>
+    </div>
+    <div class="card">
+      <div class="section-label">習慣ごとの統計(直近30日)</div>`;
+  for (const h of state.habits) {
+    const r7 = rate(h.id, 7), r30 = rate(h.id, 30);
+    const ts = timeStats(h.id, 30);
+    let timeLine = '';
+    if (ts.avgAt !== null) {
+      timeLine += `平均実施時刻 <b>${fromMin(ts.avgAt)}</b>`;
+      if (h.plan && ts.avgDiff !== null) {
+        const d = Math.round(ts.avgDiff);
+        timeLine += `(予定${h.plan}比 ${d === 0 ? '<span class="good">ぴったり</span>' : d > 0 ? `<span class="bad">+${d}分</span>` : `<span class="good">${d}分</span>`})`;
+        timeLine += ` ・ 時間通り率(±15分) <b>${ts.onTimeRate}%</b>`;
+      }
+    }
+    let durLine = '';
+    if (ts.nDur > 0) {
+      durLine = `合計 <b>${fmtDur(ts.totalDur)}</b> ・ 平均 ${fmtDur(ts.avgDur)}/回`;
+      if (h.planDur != null && ts.avgDur !== null) {
+        const pct = Math.round(ts.avgDur / h.planDur * 100);
+        durLine += `(予定${h.planDur}分の <b class="${pct >= 100 ? 'good' : 'bad'}">${pct}%</b>)`;
+      }
+    }
+    html += `
+      <div class="stat-row">
+        <div class="stat-top"><span>${esc(h.name)}</span><span class="pct">7日達成率 ${r7}%</span></div>
+        <div class="bar"><div style="width:${r7}%"></div></div>
+        <div class="stat-sub">
+          30日達成率 ${r30}% ・ 🔥${streak(h.id)}日連続(最高 ${bestStreak(h.id)}日)
+          ${timeLine ? '<br>🕐 ' + timeLine : ''}
+          ${durLine ? '<br>⏱ ' + durLine : ''}
+        </div>
+      </div>`;
+  }
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+function switchTab(tab) {
+  for (const t of ['today','calendar','stats']) {
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+    document.getElementById('view-' + t).style.display = t === tab ? '' : 'none';
+  }
+  render();
+}
+
+function render() {
+  renderToday();
+  renderCalendar();
+  renderStats();
+}
+
+// init
+const now = new Date();
+calYear = now.getFullYear();
+calMonth = now.getMonth();
+document.getElementById('todayLabel').textContent =
+  now.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+render();
+
+// 日付をまたいだら自動更新
+setInterval(() => {
+  const label = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  if (document.getElementById('todayLabel').textContent !== label) {
+    document.getElementById('todayLabel').textContent = label;
+    render();
+  }
+}, 60000);
+
+// PWA: オフライン対応
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
