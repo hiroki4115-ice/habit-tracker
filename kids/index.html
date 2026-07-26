@@ -165,7 +165,9 @@ function defaults() {
       { id: 'h4', name: 'サッカー', catId: 'c2' },
       { id: 'h5', name: 'はしる', catId: 'c2' },
       { id: 'h6', name: 'きんトレ', catId: 'c2' },
-      { id: 'h7', name: 'おさらはこび', catId: 'c3' },
+      { id: 'h7', name: 'ルナのおせわ', catId: 'c3' },
+      { id: 'h11', name: 'おうちのおしごと', catId: 'c3' },
+      { id: 'h12', name: 'かいしゃのおしごと', catId: 'c3' },
       { id: 'h8', name: 'えほんをよむ', catId: 'c4' },
       { id: 'h9', name: 'じゆうけんきゅう', catId: 'c5' },
       { id: 'h10', name: 'かたづけ', catId: 'c6' }
@@ -174,9 +176,14 @@ function defaults() {
   };
 }
 function isOldDefault(s) {
-  const oldNames = ['しゅくだい','そとあそび','おさらはこび','えほんをよむ'];
+  const oldSets = [
+    ['しゅくだい','そとあそび','おさらはこび','えほんをよむ'],
+    ['さんすう','かんじ','そのほかのべんきょう','サッカー','はしる','きんトレ','おさらはこび','えほんをよむ','じゆうけんきゅう','かたづけ']
+  ];
   const hasLogs = Object.values(s.logs || {}).some(o => o && Object.keys(o).length);
-  return !hasLogs && s.habits.length === 4 && s.habits.every((h, i) => h.name === oldNames[i]);
+  if (hasLogs) return false;
+  const names = s.habits.map(h => h.name);
+  return oldSets.some(set => set.length === names.length && set.every((n, i) => n === names[i]));
 }
 function load() {
   try {
