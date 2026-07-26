@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#fdf6ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="がんばり">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>がんばりトラッカー</title>
+<style>
+  :root {
+    --bg: #fdf6ec;
+    --card: #ffffff;
+    --text: #4a3f35;
+    --muted: #a89a8a;
+    --border: #f0e5d5;
+    --radius: 18px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    padding: calc(20px + env(safe-area-inset-top)) 14px calc(70px + env(safe-area-inset-bottom));
+  }
+  .container { max-width: 640px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 18px; }
+  header h1 { font-size: 24px; font-weight: 700; }
+  header .date { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+  .tabs { display: flex; gap: 6px; background: #f3e9d8; border-radius: 16px; padding: 5px; margin-bottom: 18px; }
+  .tabs button {
+    flex: 1; border: none; background: transparent; padding: 12px 0;
+    border-radius: 12px; font-size: 16px; font-weight: 700; color: var(--muted);
+    cursor: pointer; font-family: inherit;
+  }
+  .tabs button.active { background: var(--card); color: var(--text); box-shadow: 0 2px 4px rgba(0,0,0,.08); }
+
+  .cat-block { margin-bottom: 18px; }
+  .cat-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .cat-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+
+  .kid-row {
+    background: var(--card); border: 2px solid var(--border); border-radius: var(--radius);
+    padding: 14px; margin-bottom: 10px;
+  }
+  .kid-row.active-day { border-color: currentColor; }
+  .kid-top { display: flex; align-items: center; gap: 10px; }
+  .kid-name { flex: 1; font-size: 17px; font-weight: 700; min-width: 0; word-break: break-all; }
+  .stars { font-size: 14px; }
+  .controls { display: flex; gap: 14px; margin-top: 12px; flex-wrap: wrap; }
+  .ctrl { display: flex; align-items: center; gap: 8px; }
+  .ctrl .lbl { font-size: 13px; color: var(--muted); font-weight: 700; }
+  .ctrl button {
+    width: 44px; height: 44px; border-radius: 14px; border: none;
+    font-size: 20px; font-weight: 700; cursor: pointer; font-family: inherit;
+    color: #fff;
+  }
+  .ctrl .minus { background: #d9cbb8; }
+  .ctrl .val { font-size: 20px; font-weight: 700; min-width: 52px; text-align: center; }
+  .ctrl .val small { font-size: 12px; color: var(--muted); }
+
+  .empty { text-align: center; color: var(--muted); padding: 36px 0; font-size: 15px; line-height: 2; }
+
+  /* ---- Graph ---- */
+  .period-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .period-tabs button {
+    flex: 1; border: 2px solid var(--border); background: var(--card); padding: 10px 0;
+    border-radius: 14px; font-size: 15px; font-weight: 700; color: var(--muted);
+    cursor: pointer; font-family: inherit;
+  }
+  .period-tabs button.active { border-color: #e8a33d; color: #b97a14; background: #fdf1dc; }
+  .range-row { display: flex; gap: 8px; align-items: center; justify-content: center; margin-bottom: 12px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+  .range-row input { border: 2px solid var(--border); border-radius: 10px; padding: 7px 8px; font-size: 14px; font-family: inherit; background: var(--card); color: var(--text); }
+  .period-label { text-align: center; font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+
+  .gcard {
+    background: var(--card); border: 2px solid var(--border); border-radius: var(--radius);
+    padding: 16px; margin-bottom: 12px;
+  }
+  .ghead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .ghead .gname { font-size: 17px; font-weight: 700; flex: 1; }
+  .ghead .gtotal { font-size: 13px; color: var(--muted); font-weight: 700; text-align: right; }
+  .gbar-wrap { margin-bottom: 8px; }
+  .gbar-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-weight: 700; margin-bottom: 3px; }
+  .gbar { height: 22px; background: #f6efe3; border-radius: 11px; overflow: hidden; }
+  .gbar div { height: 100%; border-radius: 11px; min-width: 0; transition: width .5s; }
+  .hb-line { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .summary-banner {
+    background: #fdf1dc; border: 2px solid #f5d9a8; border-radius: var(--radius);
+    padding: 14px; text-align: center; font-size: 15px; font-weight: 700; color: #b97a14;
+    margin-bottom: 14px;
+  }
+
+  /* ---- Settings ---- */
+  .set-card { background: var(--card); border: 2px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+  .set-card h3 { font-size: 15px; margin-bottom: 10px; }
+  .set-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px dashed var(--border); }
+  .set-row:last-of-type { border-bottom: none; }
+  .set-row .nm { flex: 1; font-size: 15px; font-weight: 700; min-width: 0; word-break: break-all; }
+  .set-row .sub { font-size: 12px; color: var(--muted); }
+  .xbtn { border: none; background: #fbe9e4; color: #c0563a; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .add-line { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .add-line input[type="text"] {
+    flex: 1; min-width: 130px; padding: 12px; border: 2px solid var(--border); border-radius: 12px;
+    font-size: 15px; font-family: inherit; background: var(--card); outline: none; color: var(--text);
+  }
+  .add-line select { padding: 12px 8px; border: 2px solid var(--border); border-radius: 12px; font-size: 14px; font-family: inherit; background: var(--card); color: var(--text); }
+  .add-line button {
+    padding: 12px 18px; border: none; border-radius: 12px; background: #e8874f; color: #fff;
+    font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .color-pick { display: flex; gap: 8px; margin-top: 10px; }
+  .color-pick span { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; }
+  .color-pick span.sel { border-color: var(--text); }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🌟 がんばりトラッカー</h1>
+    <div class="date" id="todayLabel"></div>
+  </header>
+  <div class="tabs">
+    <button id="tab-today" class="active" onclick="switchTab('today')">きょう</button>
+    <button id="tab-graph" onclick="switchTab('graph')">グラフ</button>
+    <button id="tab-set" onclick="switchTab('set')">せってい</button>
+  </div>
+  <div id="view-today"></div>
+  <div id="view-graph" style="display:none"></div>
+  <div id="view-set" style="display:none"></div>
+</div>
+
+<script>
+const KEY = 'kidsHabit.v1';
+const PALETTE = {
+  blue:   { main: '#5b9bd5', soft: '#e7f1fb', dark: '#2e6da4' },
+  green:  { main: '#6fbf73', soft: '#e9f6ea', dark: '#3d8b41' },
+  orange: { main: '#f0a04b', soft: '#fdf1e2', dark: '#c07420' },
+  purple: { main: '#9b7fd4', soft: '#f0eafa', dark: '#6a4fa3' },
+  pink:   { main: '#ec8bb1', soft: '#fceef4', dark: '#c05580' },
+  teal:   { main: '#4fb8b0', soft: '#e6f6f5', dark: '#2a827b' }
+};
+let state = load();
+let period = { mode: 'week', from: null, to: null };
+let newCatColor = 'blue';
+
+function defaults() {
+  return {
+    cats: [
+      { id: 'c1', name: 'べんきょう', emoji: '📚', color: 'blue' },
+      { id: 'c2', name: 'うんどう', emoji: '⚽', color: 'green' },
+      { id: 'c3', name: 'おてつだい', emoji: '🧹', color: 'orange' },
+      { id: 'c4', name: 'どくしょ', emoji: '📖', color: 'purple' }
+    ],
+    habits: [
+      { id: 'h1', name: 'しゅくだい', catId: 'c1' },
+      { id: 'h2', name: 'そとあそび', catId: 'c2' },
+      { id: 'h3', name: 'おさらはこび', catId: 'c3' },
+      { id: 'h4', name: 'えほんをよむ', catId: 'c4' }
+    ],
+    logs: {}
+  };
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && Array.isArray(s.cats) && Array.isArray(s.habits) && typeof s.logs === 'object') return s;
+    }
+  } catch (e) {}
+  return defaults();
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+
+function dateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function todayKey() { return dateKey(new Date()); }
+function getLog(hid, key) { return (state.logs[hid] && state.logs[hid][key]) || null; }
+function bump(hid, field, delta) {
+  const key = todayKey();
+  if (!state.logs[hid]) state.logs[hid] = {};
+  const cur = state.logs[hid][key] || { count: 0, min: 0 };
+  cur[field] = Math.max(0, (cur[field] || 0) + delta);
+  if (cur.count === 0 && cur.min === 0) delete state.logs[hid][key];
+  else state.logs[hid][key] = cur;
+  save(); renderToday(); renderGraph();
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function pal(cat) { return PALETTE[cat.color] || PALETTE.blue; }
+function fmtMin(min) {
+  if (!min) return '0ふん';
+  return min >= 60 ? `${Math.floor(min/60)}じかん${min%60 ? (min%60)+'ふん' : ''}` : `${min}ふん`;
+}
+
+/* ---- period ---- */
+function periodRange() {
+  const now = new Date();
+  if (period.mode === 'week') {
+    const d = new Date(now); const dow = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - dow);
+    const e = new Date(d); e.setDate(e.getDate() + 6);
+    return [d, e];
+  }
+  if (period.mode === 'month') {
+    return [new Date(now.getFullYear(), now.getMonth(), 1), new Date(now.getFullYear(), now.getMonth() + 1, 0)];
+  }
+  const f = period.from ? new Date(period.from + 'T00:00:00') : now;
+  const t = period.to ? new Date(period.to + 'T00:00:00') : now;
+  return f <= t ? [f, t] : [t, f];
+}
+function sumPeriod(hid) {
+  const [from, to] = periodRange();
+  let count = 0, min = 0;
+  const d = new Date(from);
+  while (d <= to) {
+    const l = getLog(hid, dateKey(d));
+    if (l) { count += l.count || 0; min += l.min || 0; }
+    d.setDate(d.getDate() + 1);
+  }
+  return { count, min };
+}
+
+/* ---- views ---- */
+function renderToday() {
+  const el = document.getElementById('view-today');
+  if (!state.habits.length) {
+    el.innerHTML = `<div class="empty">まだ とうろくが ありません。<br>「せってい」から ついかしてね。</div>`;
+    return;
+  }
+  const key = todayKey();
+  let html = '';
+  for (const cat of state.cats) {
+    const habits = state.habits.filter(h => h.catId === cat.id);
+    if (!habits.length) continue;
+    const p = pal(cat);
+    html += `<div class="cat-block">
+      <div class="cat-title"><span class="cat-dot" style="background:${p.main}"></span>${cat.emoji} ${esc(cat.name)}</div>`;
+    for (const h of habits) {
+      const l = getLog(h.id, key) || { count: 0, min: 0 };
+      const stars = l.count > 0 ? '⭐'.repeat(Math.min(l.count, 5)) + (l.count > 5 ? `×${l.count}` : '') : '';
+      html += `
+        <div class="kid-row" style="${l.count > 0 ? `border-color:${p.main};background:${p.soft}` : ''}">
+          <div class="kid-top">
+            <div class="kid-name">${esc(h.name)}</div>
+            <div class="stars">${stars}</div>
+          </div>
+          <div class="controls">
+            <div class="ctrl">
+              <span class="lbl">かいすう</span>
+              <button class="minus" onclick="bump('${h.id}','count',-1)">−</button>
+              <span class="val">${l.count}<small>かい</small></span>
+              <button style="background:${p.main}" onclick="bump('${h.id}','count',1)">＋</button>
+            </div>
+            <div class="ctrl">
+              <span class="lbl">じかん</span>
+              <button class="minus" onclick="bump('${h.id}','min',-5)">−</button>
+              <span class="val">${l.min}<small>ふん</small></span>
+              <button style="background:${p.main}" onclick="bump('${h.id}','min',5)">＋</button>
+            </div>
+          </div>
+        </div>`;
+    }
+    html += `</div>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderGraph() {
+  const el = document.getElementById('view-graph');
+  const [from, to] = periodRange();
+  const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
+
+  const rows = state.cats.map(cat => {
+    const habits = state.habits.filter(h => h.catId === cat.id);
+    let count = 0, min = 0;
+    const perHabit = habits.map(h => {
+      const s = sumPeriod(h.id);
+      count += s.count; min += s.min;
+      return { name: h.name, ...s };
+    });
+    return { cat, count, min, perHabit };
+  });
+  const maxCount = Math.max(1, ...rows.map(r => r.count));
+  const maxMin = Math.max(1, ...rows.map(r => r.min));
+  const totalCount = rows.reduce((s, r) => s + r.count, 0);
+  const totalMin = rows.reduce((s, r) => s + r.min, 0);
+
+  let html = `
+    <div class="period-tabs">
+      <button class="${period.mode === 'week' ? 'active' : ''}" onclick="setPeriod('week')">こんしゅう</button>
+      <button class="${period.mode === 'month' ? 'active' : ''}" onclick="setPeriod('month')">こんげつ</button>
+      <button class="${period.mode === 'custom' ? 'active' : ''}" onclick="setPeriod('custom')">じぶんで</button>
+    </div>`;
+  if (period.mode === 'custom') {
+    html += `
+      <div class="range-row">
+        <input type="date" value="${period.from || todayKey()}" onchange="period.from=this.value;renderGraph()">
+        〜
+        <input type="date" value="${period.to || todayKey()}" onchange="period.to=this.value;renderGraph()">
+      </div>`;
+  }
+  html += `<div class="period-label">${fmt(from)} 〜 ${fmt(to)}</div>`;
+  html += `<div class="summary-banner">ぜんぶで ${totalCount}かい ・ ${fmtMin(totalMin)} がんばったよ!</div>`;
+
+  for (const r of rows) {
+    const p = pal(r.cat);
+    const hbLines = r.perHabit.filter(x => x.count || x.min)
+      .map(x => `${esc(x.name)} ${x.count}かい・${fmtMin(x.min)}`).join(' ／ ');
+    html += `
+      <div class="gcard">
+        <div class="ghead">
+          <span class="cat-dot" style="background:${p.main}"></span>
+          <span class="gname">${r.cat.emoji} ${esc(r.cat.name)}</span>
+          <span class="gtotal">${r.count}かい<br>${fmtMin(r.min)}</span>
+        </div>
+        <div class="gbar-wrap">
+          <div class="gbar-label"><span>かいすう</span><span>${r.count}かい</span></div>
+          <div class="gbar"><div style="width:${Math.round(r.count / maxCount * 100)}%;background:${p.main}"></div></div>
+        </div>
+        <div class="gbar-wrap">
+          <div class="gbar-label"><span>じかん</span><span>${fmtMin(r.min)}</span></div>
+          <div class="gbar"><div style="width:${Math.round(r.min / maxMin * 100)}%;background:${p.main};opacity:.55"></div></div>
+        </div>
+        ${hbLines ? `<div class="hb-line">${hbLines}</div>` : ''}
+      </div>`;
+  }
+  el.innerHTML = html;
+}
+function setPeriod(mode) {
+  period.mode = mode;
+  if (mode === 'custom' && !period.from) {
+    const now = new Date(); const w = new Date(now); w.setDate(w.getDate() - 6);
+    period.from = dateKey(w); period.to = dateKey(now);
+  }
+  renderGraph();
+}
+
+function renderSet() {
+  const el = document.getElementById('view-set');
+  let catRows = state.cats.map(c => {
+    const p = pal(c);
+    const n = state.habits.filter(h => h.catId === c.id).length;
+    return `<div class="set-row">
+      <span class="cat-dot" style="background:${p.main}"></span>
+      <span class="nm">${c.emoji} ${esc(c.name)} <span class="sub">(${n}こ)</span></span>
+      <button class="xbtn" onclick="delCat('${c.id}')">けす</button>
+    </div>`;
+  }).join('');
+  let habitRows = state.habits.map(h => {
+    const c = state.cats.find(c => c.id === h.catId);
+    return `<div class="set-row">
+      <span class="nm">${esc(h.name)} <span class="sub">${c ? c.emoji + esc(c.name) : ''}</span></span>
+      <button class="xbtn" onclick="delHabit('${h.id}')">けす</button>
+    </div>`;
+  }).join('');
+  const catOpts = state.cats.map(c => `<option value="${c.id}">${c.emoji} ${esc(c.name)}</option>`).join('');
+  const colors = Object.keys(PALETTE).map(k =>
+    `<span class="${newCatColor === k ? 'sel' : ''}" style="background:${PALETTE[k].main}" onclick="newCatColor='${k}';renderSet()"></span>`).join('');
+
+  el.innerHTML = `
+    <div class="set-card">
+      <h3>ぶんるい</h3>
+      ${catRows || '<div class="sub">まだありません</div>'}
+      <div class="add-line">
+        <input type="text" id="catEmoji" placeholder="🎨" maxlength="2" style="flex:0 0 64px;text-align:center">
+        <input type="text" id="catName" placeholder="あたらしい ぶんるい" maxlength="12">
+        <button onclick="addCat()">ついか</button>
+      </div>
+      <div class="color-pick">${colors}</div>
+    </div>
+    <div class="set-card">
+      <h3>やること</h3>
+      ${habitRows || '<div class="sub">まだありません</div>'}
+      <div class="add-line">
+        <input type="text" id="habitName" placeholder="あたらしい やること" maxlength="20">
+        <select id="habitCat">${catOpts}</select>
+        <button onclick="addHabit()">ついか</button>
+      </div>
+    </div>`;
+}
+function addCat() {
+  const name = document.getElementById('catName').value.trim();
+  if (!name) return;
+  const emoji = document.getElementById('catEmoji').value.trim() || '🎨';
+  state.cats.push({ id: 'c' + Date.now(), name, emoji, color: newCatColor });
+  save(); render();
+}
+function delCat(id) {
+  const c = state.cats.find(c => c.id === id);
+  const n = state.habits.filter(h => h.catId === id).length;
+  if (!confirm(`「${c ? c.name : ''}」をけしますか?なかの やること(${n}こ)と きろくも きえます。`)) return;
+  for (const h of state.habits.filter(h => h.catId === id)) delete state.logs[h.id];
+  state.habits = state.habits.filter(h => h.catId !== id);
+  state.cats = state.cats.filter(c => c.id !== id);
+  save(); render();
+}
+function addHabit() {
+  const name = document.getElementById('habitName').value.trim();
+  if (!name || !state.cats.length) return;
+  state.habits.push({ id: 'h' + Date.now(), name, catId: document.getElementById('habitCat').value });
+  save(); render();
+}
+function delHabit(id) {
+  const h = state.habits.find(h => h.id === id);
+  if (!confirm(`「${h ? h.name : ''}」をけしますか?きろくも きえます。`)) return;
+  state.habits = state.habits.filter(h => h.id !== id);
+  delete state.logs[id];
+  save(); render();
+}
+
+function switchTab(tab) {
+  for (const t of ['today','graph','set']) {
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+    document.getElementById('view-' + t).style.display = t === tab ? '' : 'none';
+  }
+  render();
+}
+function render() { renderToday(); renderGraph(); renderSet(); }
+
+document.getElementById('todayLabel').textContent =
+  new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+render();
+
+setInterval(() => {
+  const label = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  if (document.getElementById('todayLabel').textContent !== label) {
+    document.getElementById('todayLabel').textContent = label;
+    render();
+  }
+}, 60000);
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
