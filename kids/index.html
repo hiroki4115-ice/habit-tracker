@@ -154,23 +154,38 @@ function defaults() {
       { id: 'c1', name: 'べんきょう', emoji: '📚', color: 'blue' },
       { id: 'c2', name: 'うんどう', emoji: '⚽', color: 'green' },
       { id: 'c3', name: 'おてつだい', emoji: '🧹', color: 'orange' },
-      { id: 'c4', name: 'どくしょ', emoji: '📖', color: 'purple' }
+      { id: 'c4', name: 'どくしょ', emoji: '📖', color: 'purple' },
+      { id: 'c5', name: 'じゆうけんきゅう', emoji: '🔬', color: 'teal' },
+      { id: 'c6', name: 'かたづけ', emoji: '🧸', color: 'pink' }
     ],
     habits: [
-      { id: 'h1', name: 'しゅくだい', catId: 'c1' },
-      { id: 'h2', name: 'そとあそび', catId: 'c2' },
-      { id: 'h3', name: 'おさらはこび', catId: 'c3' },
-      { id: 'h4', name: 'えほんをよむ', catId: 'c4' }
+      { id: 'h1', name: 'さんすう', catId: 'c1' },
+      { id: 'h2', name: 'かんじ', catId: 'c1' },
+      { id: 'h3', name: 'そのほかのべんきょう', catId: 'c1' },
+      { id: 'h4', name: 'サッカー', catId: 'c2' },
+      { id: 'h5', name: 'はしる', catId: 'c2' },
+      { id: 'h6', name: 'きんトレ', catId: 'c2' },
+      { id: 'h7', name: 'おさらはこび', catId: 'c3' },
+      { id: 'h8', name: 'えほんをよむ', catId: 'c4' },
+      { id: 'h9', name: 'じゆうけんきゅう', catId: 'c5' },
+      { id: 'h10', name: 'かたづけ', catId: 'c6' }
     ],
     logs: {}
   };
+}
+function isOldDefault(s) {
+  const oldNames = ['しゅくだい','そとあそび','おさらはこび','えほんをよむ'];
+  const hasLogs = Object.values(s.logs || {}).some(o => o && Object.keys(o).length);
+  return !hasLogs && s.habits.length === 4 && s.habits.every((h, i) => h.name === oldNames[i]);
 }
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const s = JSON.parse(raw);
-      if (s && Array.isArray(s.cats) && Array.isArray(s.habits) && typeof s.logs === 'object') return s;
+      if (s && Array.isArray(s.cats) && Array.isArray(s.habits) && typeof s.logs === 'object') {
+        return isOldDefault(s) ? defaults() : s;
+      }
     }
   } catch (e) {}
   return defaults();
