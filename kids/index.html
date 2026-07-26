@@ -172,7 +172,8 @@ function defaults() {
       { id: 'h9', name: 'じゆうけんきゅう', catId: 'c5' },
       { id: 'h10', name: 'かたづけ', catId: 'c6' }
     ],
-    logs: {}
+    logs: {},
+    plans: {}
   };
 }
 function isOldDefault(s) {
@@ -191,6 +192,7 @@ function load() {
     if (raw) {
       const s = JSON.parse(raw);
       if (s && Array.isArray(s.cats) && Array.isArray(s.habits) && typeof s.logs === 'object') {
+        if (!s.plans) s.plans = {};
         return isOldDefault(s) ? defaults() : s;
       }
     }
@@ -204,15 +206,21 @@ function dateKey(d) {
 }
 function todayKey() { return dateKey(new Date()); }
 function getLog(hid, key) { return (state.logs[hid] && state.logs[hid][key]) || null; }
-function bump(hid, field, delta) {
+function getPlan(hid, key) { return (state.plans[hid] && state.plans[hid][key]) || null; }
+function bumpIn(storeName, hid, field, delta) {
   const key = todayKey();
-  if (!state.logs[hid]) state.logs[hid] = {};
-  const cur = state.logs[hid][key] || { count: 0, min: 0 };
+  const store = state[storeName];
+  if (!store[hid]) store[hid] = {};
+  const cur = store[hid][key] || { count: 0, min: 0 };
   cur[field] = Math.max(0, (cur[field] || 0) + delta);
-  if (cur.count === 0 && cur.min === 0) delete state.logs[hid][key];
-  else state.logs[hid][key] = cur;
+  if (cur.count === 0 && cur.min === 0) delete store[hid][key];
+  else store[hid][key] = cur;
   save(); renderToday(); renderGraph();
 }
+function bump(hid, field, delta) { bumpIn('logs', hid, field, delta); }
+function bumpPlan(hid, field, delta) { bumpIn('plans', hid, field, delta); }
+let mode = new Date().getHours() < 15 ? 'plan' : 'result';
+function setMode(m) { mode = m; renderToday(); }
 
 function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -239,17 +247,18 @@ function periodRange() {
   const t = period.to ? new Date(period.to + 'T00:00:00') : now;
   return f <= t ? [f, t] : [t, f];
 }
-function sumPeriod(hid) {
+function sumPeriodIn(storeName, hid) {
   const [from, to] = periodRange();
   let count = 0, min = 0;
   const d = new Date(from);
   while (d <= to) {
-    const l = getLog(hid, dateKey(d));
+    const l = state[storeName][hid] && state[storeName][hid][dateKey(d)];
     if (l) { count += l.count || 0; min += l.min || 0; }
     d.setDate(d.getDate() + 1);
   }
   return { count, min };
 }
+function sumPeriod(hid) { return sumPeriodIn('logs', hid); }
 
 /* ---- views ---- */
 function renderToday() {
@@ -259,7 +268,13 @@ function renderToday() {
     return;
   }
   const key = todayKey();
-  let html = '';
+  const isPlan = mode === 'plan';
+  let html = `
+    <div class="period-tabs" style="margin-bottom:10px">
+      <button class="${isPlan ? 'active' : ''}" onclick="setMode('plan')">☀️ けいかく</button>
+      <button class="${!isPlan ? 'active' : ''}" onclick="setMode('result')">🌙 けっか</button>
+    </div>
+    <div class="period-label">${isPlan ? 'あさ きょうのけいかくを きめよう!' : 'いちにちの けっかを いれよう!'}</div>`;
   for (const cat of state.cats) {
     const habits = state.habits.filter(h => h.catId === cat.id);
     if (!habits.length) continue;
@@ -268,27 +283,38 @@ function renderToday() {
       <div class="cat-title"><span class="cat-dot" style="background:${p.main}"></span>${cat.emoji} ${esc(cat.name)}</div>`;
     for (const h of habits) {
       const l = getLog(h.id, key) || { count: 0, min: 0 };
-      const stars = l.count > 0 ? '⭐'.repeat(Math.min(l.count, 5)) + (l.count > 5 ? `×${l.count}` : '') : '';
+      const pl = getPlan(h.id, key) || { count: 0, min: 0 };
+      const v = isPlan ? pl : l;
+      const fn = isPlan ? 'bumpPlan' : 'bump';
+      const hasPlan = pl.count > 0 || pl.min > 0;
+      const achieved = !isPlan && hasPlan && l.count >= pl.count && l.min >= pl.min;
+      const stars = !isPlan && l.count > 0 ? '⭐'.repeat(Math.min(l.count, 5)) + (l.count > 5 ? `×${l.count}` : '') : '';
+      const badge = achieved ? ' <span style="font-size:13px;font-weight:700;color:#b97a14">🎉たっせい!</span>' : '';
+      const planRef = !isPlan && hasPlan
+        ? `<div class="lbl" style="font-size:12px;color:var(--muted);font-weight:700;margin-top:6px">☀️ けいかく: ${pl.count}かい・${pl.min}ふん</div>`
+        : '';
+      const active = v.count > 0 || v.min > 0;
       html += `
-        <div class="kid-row" style="${l.count > 0 ? `border-color:${p.main};background:${p.soft}` : ''}">
+        <div class="kid-row" style="${active ? `border-color:${p.main};background:${p.soft}` : ''}">
           <div class="kid-top">
-            <div class="kid-name">${esc(h.name)}</div>
+            <div class="kid-name">${esc(h.name)}${badge}</div>
             <div class="stars">${stars}</div>
           </div>
           <div class="controls">
             <div class="ctrl">
               <span class="lbl">かいすう</span>
-              <button class="minus" onclick="bump('${h.id}','count',-1)">−</button>
-              <span class="val">${l.count}<small>かい</small></span>
-              <button style="background:${p.main}" onclick="bump('${h.id}','count',1)">＋</button>
+              <button class="minus" onclick="${fn}('${h.id}','count',-1)">−</button>
+              <span class="val">${v.count}<small>かい</small></span>
+              <button style="background:${p.main}" onclick="${fn}('${h.id}','count',1)">＋</button>
             </div>
             <div class="ctrl">
               <span class="lbl">じかん</span>
-              <button class="minus" onclick="bump('${h.id}','min',-5)">−</button>
-              <span class="val">${l.min}<small>ふん</small></span>
-              <button style="background:${p.main}" onclick="bump('${h.id}','min',5)">＋</button>
+              <button class="minus" onclick="${fn}('${h.id}','min',-5)">−</button>
+              <span class="val">${v.min}<small>ふん</small></span>
+              <button style="background:${p.main}" onclick="${fn}('${h.id}','min',5)">＋</button>
             </div>
           </div>
+          ${planRef}
         </div>`;
     }
     html += `</div>`;
@@ -303,18 +329,21 @@ function renderGraph() {
 
   const rows = state.cats.map(cat => {
     const habits = state.habits.filter(h => h.catId === cat.id);
-    let count = 0, min = 0;
+    let count = 0, min = 0, pCount = 0, pMin = 0;
     const perHabit = habits.map(h => {
       const s = sumPeriod(h.id);
-      count += s.count; min += s.min;
+      const ps = sumPeriodIn('plans', h.id);
+      count += s.count; min += s.min; pCount += ps.count; pMin += ps.min;
       return { name: h.name, ...s };
     });
-    return { cat, count, min, perHabit };
+    return { cat, count, min, pCount, pMin, perHabit };
   });
-  const maxCount = Math.max(1, ...rows.map(r => r.count));
-  const maxMin = Math.max(1, ...rows.map(r => r.min));
+  const maxCount = Math.max(1, ...rows.map(r => Math.max(r.count, r.pCount)));
+  const maxMin = Math.max(1, ...rows.map(r => Math.max(r.min, r.pMin)));
   const totalCount = rows.reduce((s, r) => s + r.count, 0);
   const totalMin = rows.reduce((s, r) => s + r.min, 0);
+  const totalPCount = rows.reduce((s, r) => s + r.pCount, 0);
+  const totalPMin = rows.reduce((s, r) => s + r.pMin, 0);
 
   let html = `
     <div class="period-tabs">
@@ -331,26 +360,29 @@ function renderGraph() {
       </div>`;
   }
   html += `<div class="period-label">${fmt(from)} 〜 ${fmt(to)}</div>`;
-  html += `<div class="summary-banner">ぜんぶで ${totalCount}かい ・ ${fmtMin(totalMin)} がんばったよ!</div>`;
+  html += `<div class="summary-banner">🌙 けっか: ${totalCount}かい・${fmtMin(totalMin)}<br><span style="font-size:13px;opacity:.8">☀️ けいかく: ${totalPCount}かい・${fmtMin(totalPMin)}</span></div>`;
 
   for (const r of rows) {
     const p = pal(r.cat);
+    const achieved = (r.pCount > 0 || r.pMin > 0) && r.count >= r.pCount && r.min >= r.pMin;
     const hbLines = r.perHabit.filter(x => x.count || x.min)
       .map(x => `${esc(x.name)} ${x.count}かい・${fmtMin(x.min)}`).join(' ／ ');
     html += `
       <div class="gcard">
         <div class="ghead">
           <span class="cat-dot" style="background:${p.main}"></span>
-          <span class="gname">${r.cat.emoji} ${esc(r.cat.name)}</span>
-          <span class="gtotal">${r.count}かい<br>${fmtMin(r.min)}</span>
+          <span class="gname">${r.cat.emoji} ${esc(r.cat.name)}${achieved ? ' <span style="font-size:13px;color:#b97a14">🎉たっせい!</span>' : ''}</span>
+          <span class="gtotal">🌙 ${r.count}かい・${fmtMin(r.min)}<br>☀️ ${r.pCount}かい・${fmtMin(r.pMin)}</span>
         </div>
         <div class="gbar-wrap">
-          <div class="gbar-label"><span>かいすう</span><span>${r.count}かい</span></div>
-          <div class="gbar"><div style="width:${Math.round(r.count / maxCount * 100)}%;background:${p.main}"></div></div>
+          <div class="gbar-label"><span>かいすう</span><span>☀️${r.pCount}かい → 🌙${r.count}かい</span></div>
+          <div class="gbar" style="height:12px;margin-bottom:3px"><div style="width:${Math.round(r.pCount / maxCount * 100)}%;background:${p.main};opacity:.35"></div></div>
+          <div class="gbar" style="height:12px"><div style="width:${Math.round(r.count / maxCount * 100)}%;background:${p.main}"></div></div>
         </div>
-        <div class="gbar-wrap">
-          <div class="gbar-label"><span>じかん</span><span>${fmtMin(r.min)}</span></div>
-          <div class="gbar"><div style="width:${Math.round(r.min / maxMin * 100)}%;background:${p.main};opacity:.55"></div></div>
+        <div class="gbar-wrap" style="margin-top:8px">
+          <div class="gbar-label"><span>じかん</span><span>☀️${fmtMin(r.pMin)} → 🌙${fmtMin(r.min)}</span></div>
+          <div class="gbar" style="height:12px;margin-bottom:3px"><div style="width:${Math.round(r.pMin / maxMin * 100)}%;background:${p.main};opacity:.35"></div></div>
+          <div class="gbar" style="height:12px"><div style="width:${Math.round(r.min / maxMin * 100)}%;background:${p.main}"></div></div>
         </div>
         ${hbLines ? `<div class="hb-line">${hbLines}</div>` : ''}
       </div>`;
