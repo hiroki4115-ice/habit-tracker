@@ -124,6 +124,7 @@
     <h1>🌟 がんばりトラッカー</h1>
     <div class="date" id="todayLabel"></div>
   </header>
+  <div id="roBanner" class="summary-banner" style="display:none"></div>
   <div class="tabs">
     <button id="tab-today" class="active" onclick="switchTab('today')">きょう</button>
     <button id="tab-graph" onclick="switchTab('graph')">グラフ</button>
@@ -209,8 +210,16 @@ function dateKey(d) {
 function todayKey() { return dateKey(new Date()); }
 function getLog(hid, key) { return (state.logs[hid] && state.logs[hid][key]) || null; }
 function getPlan(hid, key) { return (state.plans[hid] && state.plans[hid][key]) || null; }
+let selDate = null;
+function moveDay(delta) {
+  const d = new Date(selDate + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  selDate = dateKey(d);
+  renderToday();
+}
+function goToday() { selDate = todayKey(); renderToday(); }
 function bumpIn(storeName, hid, field, delta) {
-  const key = todayKey();
+  const key = selDate;
   const store = state[storeName];
   if (!store[hid]) store[hid] = {};
   const cur = store[hid][key] || { count: 0, min: 0 };
@@ -226,6 +235,135 @@ function setMode(m) { mode = m; renderToday(); }
 
 function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ---------- 共有 (おやにみせる) ---------- */
+let readOnly = false;
+const SHARE_PAST = 60, SHARE_FUTURE = 14;
+
+function b64e(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function b64d(s) {
+  s = s.replace(/-/g,'+').replace(/_/g,'/');
+  const bin = atob(s);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+function pack() {
+  const base = new Date(); base.setHours(0,0,0,0);
+  const off = k => Math.round((new Date(k + 'T00:00:00') - base) / 86400000);
+  const packStore = st => {
+    const out = {};
+    for (const hid in st) {
+      const inner = {};
+      for (const k in st[hid]) {
+        const o = off(k);
+        if (o < -SHARE_PAST || o > SHARE_FUTURE) continue;
+        const v = st[hid][k];
+        if (!v) continue;
+        inner[o] = [v.count || 0, v.min || 0];
+      }
+      if (Object.keys(inner).length) out[hid] = inner;
+    }
+    return out;
+  };
+  return {
+    b: dateKey(base),
+    c: state.cats.map(c => [c.id, c.name, c.emoji, c.color]),
+    h: state.habits.map(h => [h.id, h.name, h.catId]),
+    l: packStore(state.logs),
+    p: packStore(state.plans)
+  };
+}
+function unpack(o) {
+  const base = new Date(o.b + 'T00:00:00');
+  const keyOf = n => { const d = new Date(base); d.setDate(d.getDate() + Number(n)); return dateKey(d); };
+  const un = st => {
+    const out = {};
+    for (const hid in st) {
+      out[hid] = {};
+      for (const n in st[hid]) {
+        const v = st[hid][n];
+        out[hid][keyOf(n)] = { count: v[0], min: v[1] };
+      }
+    }
+    return out;
+  };
+  return {
+    cats: (o.c || []).map(a => ({ id: a[0], name: a[1], emoji: a[2], color: a[3] })),
+    habits: (o.h || []).map(a => ({ id: a[0], name: a[1], catId: a[2] })),
+    logs: un(o.l || {}),
+    plans: un(o.p || {})
+  };
+}
+function bytesToB64u(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function b64uToBytes(s) {
+  s = s.replace(/-/g,'+').replace(/_/g,'/');
+  const bin = atob(s);
+  const a = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+  return a;
+}
+async function deflateStr(str) {
+  const cs = new CompressionStream('deflate-raw');
+  const w = cs.writable.getWriter();
+  w.write(new TextEncoder().encode(str)); w.close();
+  return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+}
+async function inflateBytes(bytes) {
+  const ds = new DecompressionStream('deflate-raw');
+  const w = ds.writable.getWriter();
+  w.write(bytes); w.close();
+  return new TextDecoder().decode(new Uint8Array(await new Response(ds.readable).arrayBuffer()));
+}
+async function shareUrl() {
+  const json = JSON.stringify(pack());
+  let payload;
+  try {
+    if (typeof CompressionStream === 'function') payload = 'z' + bytesToB64u(await deflateStr(json));
+    else payload = 'j' + b64e(json);
+  } catch (e) {
+    payload = 'j' + b64e(json);
+  }
+  return location.origin + location.pathname + '?d=' + payload;
+}
+async function decodePayload(d) {
+  if (d[0] === 'z') return await inflateBytes(b64uToBytes(d.slice(1)));
+  if (d[0] === 'j') return b64d(d.slice(1));
+  return b64d(d);
+}
+async function doShare() {
+  const url = await shareUrl();
+  const text = 'きょうの がんばり きろく';
+  if (navigator.share) {
+    navigator.share({ title: 'がんばりトラッカー', text, url }).catch(() => showUrl(url));
+  } else {
+    showUrl(url);
+  }
+}
+function showUrl(url) {
+  if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
+  const box = document.getElementById('shareBox');
+  if (box) {
+    box.innerHTML = `
+      <div style="font-size:13px;color:var(--muted);margin-bottom:6px">このリンクを おうちのひとに おくってね(コピーしました)</div>
+      <textarea readonly style="width:100%;height:80px;border:2px solid var(--border);border-radius:12px;padding:8px;font-size:12px;font-family:inherit;background:var(--card);color:var(--text)">${esc(url)}</textarea>`;
+  }
+}
+function saveShared() {
+  if (!confirm('この きろくを この スマホに ほぞんしますか?いまの データは じょうしょされます。')) return;
+  state.plans = state.plans || {};
+  localStorage.setItem(KEY, JSON.stringify(state));
+  location.href = location.origin + location.pathname;
 }
 function pal(cat) { return PALETTE[cat.color] || PALETTE.blue; }
 function fmtMin(min) {
@@ -269,14 +407,29 @@ function renderToday() {
     el.innerHTML = `<div class="empty">まだ とうろくが ありません。<br>「せってい」から ついかしてね。</div>`;
     return;
   }
-  const key = todayKey();
+  if (!selDate) selDate = todayKey();
+  const key = selDate;
   const isPlan = mode === 'plan';
+  const t = todayKey();
+  const sd = new Date(selDate + 'T00:00:00');
+  const dows = ['にち','げつ','か','すい','もく','きん','ど'];
+  const dayLabel = `${sd.getMonth()+1}がつ${sd.getDate()}にち(${dows[sd.getDay()]})${selDate === t ? ' きょう' : ''}`;
   let html = `
+    <div class="cal-head" style="margin-bottom:8px">
+      <button onclick="moveDay(-1)">‹</button>
+      <div style="text-align:center">
+        <div style="font-size:16px;font-weight:700">${dayLabel}</div>
+        <input type="date" value="${selDate}" onchange="selDate=this.value||todayKey();renderToday()"
+          style="border:2px solid var(--border);border-radius:10px;padding:4px 8px;font-family:inherit;background:var(--card);color:var(--text);font-size:13px;margin-top:4px">
+        ${selDate !== t ? `<button onclick="goToday()" style="border:none;background:#fdf1dc;color:#b97a14;border-radius:10px;padding:5px 10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-left:6px">きょうへ</button>` : ''}
+      </div>
+      <button onclick="moveDay(1)">›</button>
+    </div>
     <div class="period-tabs" style="margin-bottom:10px">
       <button class="${isPlan ? 'active' : ''}" onclick="setMode('plan')">☀️ けいかく</button>
       <button class="${!isPlan ? 'active' : ''}" onclick="setMode('result')">🌙 けっか</button>
     </div>
-    <div class="period-label">${isPlan ? 'あさ きょうのけいかくを きめよう!' : 'いちにちの けっかを いれよう!'}</div>`;
+    <div class="period-label">${isPlan ? 'この日の けいかくを きめよう!' : 'この日の けっかを いれよう!'}</div>`;
   for (const cat of state.cats) {
     const habits = state.habits.filter(h => h.catId === cat.id);
     if (!habits.length) continue;
@@ -303,6 +456,10 @@ function renderToday() {
             <div class="stars">${stars}</div>
           </div>
           <div class="controls">
+            ${readOnly ? `
+            <div class="ctrl"><span class="lbl">かいすう</span><span class="val">${v.count}<small>かい</small></span></div>
+            <div class="ctrl"><span class="lbl">じかん</span><span class="val">${v.min}<small>ふん</small></span></div>
+            ` : `
             <div class="ctrl">
               <span class="lbl">かいすう</span>
               <button class="minus" onclick="${fn}('${h.id}','count',-1)">−</button>
@@ -315,6 +472,7 @@ function renderToday() {
               <span class="val">${v.min}<small>ふん</small></span>
               <button style="background:${p.main}" onclick="${fn}('${h.id}','min',5)">＋</button>
             </div>
+            `}
           </div>
           ${planRef}
         </div>`;
@@ -402,6 +560,20 @@ function setPeriod(mode) {
 
 function renderSet() {
   const el = document.getElementById('view-set');
+  if (readOnly) {
+    el.innerHTML = `
+      <div class="set-card">
+        <h3>👀 みるだけモード</h3>
+        <div class="sub" style="font-size:13px;color:var(--muted);line-height:1.8">
+          おくられてきた きろくを みています。ここでは へんしゅうできません。<br>
+          このスマホに ほぞんすると、グラフを あとから いつでも みられます。
+        </div>
+        <div class="add-line">
+          <button onclick="saveShared()">このスマホに ほぞんする</button>
+        </div>
+      </div>`;
+    return;
+  }
   let catRows = state.cats.map(c => {
     const p = pal(c);
     const n = state.habits.filter(h => h.catId === c.id).length;
@@ -423,6 +595,16 @@ function renderSet() {
     `<span class="${newCatColor === k ? 'sel' : ''}" style="background:${PALETTE[k].main}" onclick="newCatColor='${k}';renderSet()"></span>`).join('');
 
   el.innerHTML = `
+    <div class="set-card">
+      <h3>📤 おうちのひとに みせる</h3>
+      <div class="sub" style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:10px">
+        ボタンを おすと リンクが できます。LINEなどで おくると、おうちのひとの スマホで きろくが みられます。
+      </div>
+      <div class="add-line">
+        <button onclick="doShare()">リンクを つくる</button>
+      </div>
+      <div id="shareBox" style="margin-top:10px"></div>
+    </div>
     <div class="set-card">
       <h3>ぶんるい</h3>
       ${catRows || '<div class="sub">まだありません</div>'}
@@ -484,7 +666,29 @@ function render() { renderToday(); renderGraph(); renderSet(); }
 
 document.getElementById('todayLabel').textContent =
   new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-render();
+
+// 共有リンクで開かれた場合は「みるだけモード」
+(async () => {
+  try {
+    const d = new URLSearchParams(location.search).get('d');
+    if (d) {
+      const loaded = unpack(JSON.parse(await decodePayload(d)));
+      if (loaded.habits.length) {
+        state = loaded;
+        readOnly = true;
+        mode = 'result';
+        const b = document.getElementById('roBanner');
+        if (b) {
+          b.style.display = '';
+          b.innerHTML = '👀 みるだけモード(おくられた きろくを ひょうじちゅう)';
+        }
+      }
+    }
+  } catch (e) {
+    readOnly = false;
+  }
+  render();
+})();
 
 setInterval(() => {
   const label = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
