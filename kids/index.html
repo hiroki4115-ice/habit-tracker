@@ -66,6 +66,26 @@
   .empty { text-align: center; color: var(--muted); padding: 36px 0; font-size: 15px; line-height: 2; }
 
   /* ---- Graph ---- */
+  .day-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-bottom: 12px;
+  }
+  .day-nav .arrow {
+    flex: 0 0 46px; width: 46px; height: 46px; border-radius: 15px;
+    border: 2px solid var(--border); background: var(--card); color: var(--text);
+    font-size: 22px; font-weight: 700; cursor: pointer; font-family: inherit; line-height: 1;
+  }
+  .day-nav .mid { flex: 1; min-width: 0; text-align: center; }
+  .day-nav .dlabel { font-size: 17px; font-weight: 700; }
+  .day-nav .sub-row { display: flex; gap: 6px; justify-content: center; align-items: center; margin-top: 5px; flex-wrap: wrap; }
+  .day-nav .sub-row input {
+    border: 2px solid var(--border); border-radius: 10px; padding: 5px 8px;
+    font-family: inherit; background: var(--card); color: var(--text); font-size: 13px;
+  }
+  .day-nav .today-btn {
+    border: none; background: #fdf1dc; color: #b97a14; border-radius: 10px;
+    padding: 7px 12px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
   .period-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
   .period-tabs button {
     flex: 1; border: 2px solid var(--border); background: var(--card); padding: 10px 0;
@@ -415,15 +435,16 @@ function renderToday() {
   const dows = ['にち','げつ','か','すい','もく','きん','ど'];
   const dayLabel = `${sd.getMonth()+1}がつ${sd.getDate()}にち(${dows[sd.getDay()]})${selDate === t ? ' きょう' : ''}`;
   let html = `
-    <div class="cal-head" style="margin-bottom:8px">
-      <button onclick="moveDay(-1)">‹</button>
-      <div style="text-align:center">
-        <div style="font-size:16px;font-weight:700">${dayLabel}</div>
-        <input type="date" value="${selDate}" onchange="selDate=this.value||todayKey();renderToday()"
-          style="border:2px solid var(--border);border-radius:10px;padding:4px 8px;font-family:inherit;background:var(--card);color:var(--text);font-size:13px;margin-top:4px">
-        ${selDate !== t ? `<button onclick="goToday()" style="border:none;background:#fdf1dc;color:#b97a14;border-radius:10px;padding:5px 10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-left:6px">きょうへ</button>` : ''}
+    <div class="day-nav">
+      <button class="arrow" onclick="moveDay(-1)" aria-label="まえの日">‹</button>
+      <div class="mid">
+        <div class="dlabel">${dayLabel}</div>
+        <div class="sub-row">
+          <input type="date" value="${selDate}" onchange="selDate=this.value||todayKey();renderToday()">
+          ${selDate !== t ? `<button class="today-btn" onclick="goToday()">きょうへ</button>` : ''}
+        </div>
       </div>
-      <button onclick="moveDay(1)">›</button>
+      <button class="arrow" onclick="moveDay(1)" aria-label="つぎの日">›</button>
     </div>
     <div class="period-tabs" style="margin-bottom:10px">
       <button class="${isPlan ? 'active' : ''}" onclick="setMode('plan')">☀️ けいかく</button>
